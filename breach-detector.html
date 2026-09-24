@@ -1,0 +1,1072 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>IOT CIPHERWATCH — IoT Security Dashboard</title>
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Barlow:wght@300;400;600;700;900&family=Orbitron:wght@500;700;900&display=swap" rel="stylesheet"/>
+<style>
+  :root {
+    --bg:        #050a0f;
+    --panel:     #090f18;
+    --border:    #0d2136;
+    --accent:    #00d4ff;
+    --accent2:   #00ff9d;
+    --danger:    #ff3b5c;
+    --warn:      #ffb800;
+    --text:      #c8dde8;
+    --dim:       #3a5568;
+    --glow:      0 0 18px rgba(0,212,255,.35);
+    --glow2:     0 0 18px rgba(0,255,157,.35);
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: 'Barlow', sans-serif; min-height: 100vh; overflow-x: hidden; }
+  body::before { content: ''; position: fixed; inset: 0; background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,.07) 2px, rgba(0,0,0,.07) 4px); pointer-events: none; z-index: 999; }
+  body::after { content: ''; position: fixed; inset: 0; background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='4'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.04'/%3E%3C/svg%3E"); pointer-events: none; z-index: 998; opacity: .5; }
+
+  header { display: flex; align-items: center; justify-content: space-between; padding: 18px 32px; border-bottom: 1px solid var(--border); background: linear-gradient(90deg, #050a0f 0%, #071422 60%, #050a0f 100%); position: sticky; top: 0; z-index: 100; animation: fadeDown .6s ease both; }
+  .logo { font-family: 'Orbitron', monospace; font-size: 1.35rem; font-weight: 900; color: var(--accent); text-shadow: var(--glow); letter-spacing: 3px; }
+  .logo span { color: var(--accent2); }
+  .header-status { display: flex; gap: 16px; align-items: center; font-family: 'Share Tech Mono', monospace; font-size: .72rem; flex-wrap: wrap; }
+  .status-pill { display: flex; align-items: center; gap: 6px; padding: 4px 11px; border-radius: 2px; border: 1px solid var(--border); }
+  .dot { width: 7px; height: 7px; border-radius: 50%; animation: blink 1.4s infinite; }
+  .dot.green { background: var(--accent2); box-shadow: 0 0 6px var(--accent2); }
+  .dot.amber { background: var(--warn); box-shadow: 0 0 6px var(--warn); animation-delay: .3s; }
+  .dot.red { background: var(--danger); box-shadow: 0 0 6px var(--danger); animation-delay: .6s; }
+  .header-right { display: flex; align-items: center; gap: 18px; }
+  .header-time { font-family: 'Share Tech Mono', monospace; font-size: .8rem; color: var(--dim); }
+  .logout-btn { font-family: 'Share Tech Mono', monospace; font-size: .68rem; background: none; border: 1px solid var(--border); color: var(--dim); padding: 6px 12px; cursor: pointer; letter-spacing: 1px; text-transform: uppercase; transition: all .2s; }
+  .logout-btn:hover { color: var(--danger); border-color: var(--danger); }
+
+  .shell { display: grid; grid-template-columns: 220px 1fr; min-height: calc(100vh - 61px); }
+  nav { border-right: 1px solid var(--border); padding: 24px 0; background: var(--panel); animation: fadeLeft .5s ease .1s both; }
+  .nav-section { margin-bottom: 28px; }
+  .nav-label { font-size: .65rem; letter-spacing: 3px; text-transform: uppercase; color: var(--dim); padding: 0 20px; margin-bottom: 8px; font-family: 'Share Tech Mono', monospace; }
+  .nav-item { display: flex; align-items: center; gap: 12px; padding: 10px 20px; cursor: pointer; border-left: 3px solid transparent; font-size: .85rem; font-weight: 600; transition: all .2s; color: var(--dim); }
+  .nav-item:hover { color: var(--text); background: rgba(0,212,255,.04); border-left-color: var(--dim); }
+  .nav-item.active { color: var(--accent); border-left-color: var(--accent); background: rgba(0,212,255,.07); }
+  .nav-item .ni { font-size: 1rem; width: 18px; text-align: center; }
+  .nav-badge { margin-left: auto; background: var(--danger); color: #fff; font-size: .6rem; padding: 2px 6px; border-radius: 2px; font-family: 'Share Tech Mono', monospace; }
+
+  main { padding: 28px 32px; animation: fadeUp .5s ease .2s both; overflow-y: auto; }
+  .page { display: none; }
+  .page.active { display: block; }
+  .page-title { font-family: 'Orbitron', monospace; font-size: 1.1rem; font-weight: 700; color: var(--accent); letter-spacing: 2px; margin-bottom: 4px; }
+  .page-sub { font-size: .8rem; color: var(--dim); margin-bottom: 20px; font-family: 'Share Tech Mono', monospace; }
+
+  .backend-banner { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 12px 18px; margin-bottom: 18px; border: 1px solid var(--border); font-family: 'Share Tech Mono', monospace; font-size: .75rem; }
+  .backend-banner.ok { border-color: rgba(0,255,157,.3); background: rgba(0,255,157,.05); color: var(--accent2); }
+  .backend-banner.down { border-color: rgba(255,59,92,.35); background: rgba(255,59,92,.06); color: var(--danger); }
+  .backend-banner b { letter-spacing: 1px; }
+  .backend-banner code { background: rgba(255,255,255,.05); padding: 2px 6px; border-radius: 2px; }
+
+  .stats-row { display: grid; grid-template-columns: repeat(4,1fr); gap: 16px; margin-bottom: 24px; }
+  .stat-card { background: var(--panel); border: 1px solid var(--border); padding: 20px; position: relative; overflow: hidden; cursor: default; transition: border-color .25s, box-shadow .25s; }
+  .stat-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px; }
+  .stat-card.c1::before { background: var(--accent); } .stat-card.c2::before { background: var(--accent2); }
+  .stat-card.c3::before { background: var(--warn); } .stat-card.c4::before { background: var(--danger); }
+  .stat-card:hover { border-color: var(--accent); box-shadow: var(--glow); }
+  .stat-label { font-size: .7rem; color: var(--dim); letter-spacing: 2px; text-transform: uppercase; font-family: 'Share Tech Mono', monospace; margin-bottom: 10px; }
+  .stat-val { font-family: 'Orbitron', monospace; font-size: 2rem; font-weight: 700; color: var(--text); }
+  .stat-sub { font-size: .72rem; color: var(--dim); margin-top: 6px; }
+
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px; }
+  .grid3 { display: grid; grid-template-columns: 2fr 1fr; gap: 20px; margin-bottom: 20px; }
+  .pnl { background: var(--panel); border: 1px solid var(--border); padding: 20px; animation: fadeUp .4s ease both; }
+  .pnl-title { font-family: 'Orbitron', monospace; font-size: .75rem; font-weight: 700; color: var(--accent); letter-spacing: 2px; text-transform: uppercase; margin-bottom: 16px; display: flex; align-items: center; justify-content: space-between; }
+  .pnl-title-right { font-family: 'Share Tech Mono', monospace; font-size: .65rem; color: var(--dim); }
+
+  .device-list { display: flex; flex-direction: column; gap: 12px; }
+  .device-card { display: grid; grid-template-columns: 48px 1fr auto; align-items: center; gap: 14px; padding: 14px 16px; border: 1px solid var(--border); background: rgba(9,15,24,.8); transition: all .2s; position: relative; }
+  .device-card::after { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; }
+  .device-card.online::after { background: var(--accent2); }
+  .device-card.warning::after { background: var(--warn); }
+  .device-card.offline::after { background: var(--danger); }
+  .device-card:hover { border-color: var(--accent); background: rgba(0,212,255,.04); }
+  .device-icon { width: 48px; height: 48px; background: rgba(0,212,255,.08); border: 1px solid var(--border); display: flex; align-items: center; justify-content: center; font-size: 1.4rem; }
+  .device-name { font-weight: 700; font-size: .9rem; margin-bottom: 4px; }
+  .device-meta { font-size: .72rem; color: var(--dim); font-family: 'Share Tech Mono', monospace; }
+  .device-status { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
+  .device-actions { display: flex; gap: 6px; }
+  .badge { font-family: 'Share Tech Mono', monospace; font-size: .65rem; padding: 3px 8px; border-radius: 2px; font-weight: 700; letter-spacing: 1px; }
+  .badge.online  { background: rgba(0,255,157,.12); color: var(--accent2); border: 1px solid rgba(0,255,157,.25); }
+  .badge.warning { background: rgba(255,184,0,.12); color: var(--warn);    border: 1px solid rgba(255,184,0,.25); }
+  .badge.offline { background: rgba(255,59,92,.12);  color: var(--danger); border: 1px solid rgba(255,59,92,.25); }
+  .badge.auto { background: rgba(0,212,255,.12); color: var(--accent); border: 1px solid rgba(0,212,255,.25); }
+  .icon-btn { width: 24px; height: 24px; border: 1px solid var(--border); background: transparent; color: var(--dim); cursor: pointer; font-size: .7rem; display: flex; align-items: center; justify-content: center; transition: all .2s; }
+  .icon-btn:hover { border-color: var(--danger); color: var(--danger); box-shadow: 0 0 8px rgba(255,59,92,.3); }
+
+  .log-feed { font-family: 'Share Tech Mono', monospace; font-size: .73rem; display: flex; flex-direction: column; gap: 6px; max-height: 220px; overflow-y: auto; }
+  .log-item { display: flex; gap: 12px; padding: 6px 0; border-bottom: 1px solid rgba(13,33,54,.6); }
+  .log-time { color: var(--dim); min-width: 80px; }
+  .log-msg { flex: 1; }
+  .log-msg.ok { color: var(--accent2); } .log-msg.warn { color: var(--warn); }
+  .log-msg.err { color: var(--danger); } .log-msg.info { color: var(--accent); }
+
+  .pw-list { display: flex; flex-direction: column; gap: 10px; }
+  .pw-item { display: grid; grid-template-columns: 1fr auto auto; align-items: center; gap: 12px; padding: 12px 14px; border: 1px solid var(--border); background: rgba(5,10,15,.8); }
+  .pw-device { font-size: .82rem; font-weight: 600; }
+  .pw-hash { font-family: 'Share Tech Mono', monospace; font-size: .68rem; color: var(--dim); margin-top: 3px; letter-spacing: 1px; }
+  .pw-strength { display: flex; gap: 3px; }
+  .pw-bar { width: 6px; height: 20px; background: var(--border); border-radius: 1px; }
+  .pw-bar.filled.high { background: var(--accent2); } .pw-bar.filled.med { background: var(--warn); } .pw-bar.filled.low { background: var(--danger); }
+
+  .btn { font-family: 'Share Tech Mono', monospace; font-size: .72rem; padding: 7px 14px; border: 1px solid var(--accent); color: var(--accent); background: transparent; cursor: pointer; letter-spacing: 1px; transition: all .2s; text-transform: uppercase; }
+  .btn:hover { background: var(--accent); color: var(--bg); box-shadow: var(--glow); }
+  .btn.danger { border-color: var(--danger); color: var(--danger); } .btn.danger:hover { background: var(--danger); color: #fff; }
+  .btn.success { border-color: var(--accent2); color: var(--accent2); } .btn.success:hover { background: var(--accent2); color: var(--bg); }
+  .btn:disabled { opacity: .4; cursor: not-allowed; }
+
+  table { width: 100%; border-collapse: collapse; }
+  th { text-align: left; font-family: 'Share Tech Mono', monospace; font-size: .65rem; letter-spacing: 2px; color: var(--dim); padding: 8px 12px; border-bottom: 1px solid var(--border); text-transform: uppercase; }
+  td { padding: 11px 12px; font-size: .82rem; border-bottom: 1px solid rgba(13,33,54,.5); }
+  tr:hover td { background: rgba(0,212,255,.03); } tr:last-child td { border-bottom: none; }
+
+  .progress-wrap { margin-top: 8px; }
+  .progress-label { display: flex; justify-content: space-between; font-size: .72rem; color: var(--dim); margin-bottom: 5px; font-family: 'Share Tech Mono', monospace; }
+  .progress-bar { height: 5px; background: var(--border); overflow: hidden; }
+  .progress-fill { height: 100%; transition: width 1.2s cubic-bezier(.4,0,.2,1); }
+  .progress-fill.cyan { background: linear-gradient(90deg, var(--accent), #007fa8); }
+  .progress-fill.green { background: linear-gradient(90deg, var(--accent2), #008a56); }
+  .progress-fill.amber { background: linear-gradient(90deg, var(--warn), #9c7200); }
+
+  .toggle { position: relative; display: inline-block; width: 38px; height: 20px; flex-shrink: 0; }
+  .toggle input { opacity: 0; width: 0; height: 0; }
+  .slider { position: absolute; cursor: pointer; inset: 0; background: var(--border); transition: .3s; }
+  .slider::before { content: ''; position: absolute; height: 14px; width: 14px; left: 3px; bottom: 3px; background: var(--dim); transition: .3s; }
+  input:checked + .slider { background: rgba(0,255,157,.2); border: 1px solid var(--accent2); }
+  input:checked + .slider::before { transform: translateX(18px); background: var(--accent2); }
+
+  .guide-banner { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; background: rgba(0,212,255,.05); border: 1px dashed var(--accent); padding: 16px 18px; margin-bottom: 16px; font-size: .78rem; color: var(--text); }
+  .guide-banner b { color: var(--accent); }
+  .guide-banner ol { margin: 8px 0 0 18px; } .guide-banner li { margin-bottom: 5px; }
+  .guide-close { background: none; border: none; color: var(--dim); cursor: pointer; font-size: 1rem; flex-shrink: 0; }
+  .guide-close:hover { color: var(--danger); }
+
+  .modal-overlay { position: fixed; inset: 0; background: rgba(5,10,15,.9); z-index: 500; display: flex; align-items: center; justify-content: center; opacity: 0; pointer-events: none; transition: opacity .25s; padding: 20px; }
+  .modal-overlay.open { opacity: 1; pointer-events: all; }
+  .modal { background: var(--panel); border: 1px solid var(--accent); box-shadow: var(--glow); padding: 28px; min-width: 420px; max-width: 540px; width: 100%; max-height: 88vh; overflow-y: auto; transform: translateY(20px); transition: transform .25s; position: relative; }
+  .modal-overlay.open .modal { transform: translateY(0); }
+  .modal-title { font-family: 'Orbitron', monospace; font-size: .9rem; color: var(--accent); margin-bottom: 8px; letter-spacing: 2px; }
+  .modal-steps { font-family: 'Share Tech Mono', monospace; font-size: .68rem; color: var(--dim); line-height: 1.7; background: rgba(0,212,255,.05); border: 1px solid var(--border); padding: 10px 12px; margin-bottom: 18px; }
+  .modal-steps b { color: var(--accent2); }
+  .form-row { margin-bottom: 14px; }
+  .form-label { font-family: 'Share Tech Mono', monospace; font-size: .7rem; color: var(--dim); margin-bottom: 6px; display: block; letter-spacing: 1px; }
+  .form-hint { font-family: 'Share Tech Mono', monospace; font-size: .68rem; color: var(--dim); margin-top: 8px; }
+  .form-input { width: 100%; padding: 9px 12px; background: rgba(5,10,15,.8); border: 1px solid var(--border); color: var(--text); font-family: 'Share Tech Mono', monospace; font-size: .82rem; outline: none; transition: border-color .2s; }
+  .form-input:focus { border-color: var(--accent); box-shadow: var(--glow); }
+  .form-row select.form-input { cursor: pointer; }
+  .conditional-fields { display: none; border-left: 2px solid var(--accent); padding-left: 12px; margin-top: 10px; }
+  .conditional-fields.show { display: block; }
+  .generated-pw { background: rgba(0,255,157,.06); border: 1px solid rgba(0,255,157,.2); padding: 12px; font-family: 'Share Tech Mono', monospace; font-size: .85rem; color: var(--accent2); letter-spacing: 2px; word-break: break-all; display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-top: 10px; }
+  .copy-btn { font-size: .7rem; cursor: pointer; color: var(--dim); transition: color .2s; background: none; border: none; font-family: 'Share Tech Mono', monospace; flex-shrink:0; }
+  .copy-btn:hover { color: var(--accent2); }
+  .apply-result { font-family: 'Share Tech Mono', monospace; font-size: .72rem; padding: 10px 12px; margin-top: 10px; border: 1px solid var(--border); display: none; }
+  .apply-result.auto { display: block; border-color: rgba(0,255,157,.3); color: var(--accent2); background: rgba(0,255,157,.05); }
+  .apply-result.manual { display: block; border-color: rgba(255,184,0,.3); color: var(--warn); background: rgba(255,184,0,.05); }
+  .apply-result.fail { display: block; border-color: rgba(255,59,92,.35); color: var(--danger); background: rgba(255,59,92,.06); }
+  .modal-footer { display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px; flex-wrap: wrap; }
+  .close-x { position: absolute; top: 14px; right: 16px; background: none; border: none; color: var(--dim); font-size: 1.1rem; cursor: pointer; }
+  .close-x:hover { color: var(--danger); }
+
+  .toast { position: fixed; bottom: 28px; right: 28px; z-index: 600; background: var(--panel); border: 1px solid var(--accent2); color: var(--accent2); padding: 12px 20px; font-family: 'Share Tech Mono', monospace; font-size: .78rem; box-shadow: var(--glow2); transform: translateY(20px); opacity: 0; transition: all .3s; max-width: 340px; }
+  .toast.show { transform: translateY(0); opacity: 1; }
+  .toast.err { border-color: var(--danger); color: var(--danger); box-shadow: 0 0 18px rgba(255,59,92,.3); }
+
+  .score-circle { width: 110px; height: 110px; margin: 0 auto 16px; position: relative; display: flex; align-items: center; justify-content: center; }
+  .score-circle svg { position: absolute; inset: 0; transform: rotate(-90deg); }
+  .score-val { font-family: 'Orbitron', monospace; font-size: 1.6rem; font-weight: 700; color: var(--accent2); }
+  .score-label { text-align: center; font-family: 'Share Tech Mono', monospace; font-size: .65rem; color: var(--dim); letter-spacing: 2px; }
+
+  .login-overlay { position: fixed; inset: 0; background: var(--bg); display: flex; align-items: center; justify-content: center; z-index: 1000; padding: 20px; }
+  .login-box { width: 100%; max-width: 380px; background: var(--panel); border: 1px solid var(--accent); box-shadow: var(--glow); padding: 36px 32px; animation: fadeUp .5s ease both; }
+  .login-logo { font-family: 'Orbitron', monospace; font-size: 1.3rem; font-weight: 900; color: var(--accent); text-shadow: var(--glow); text-align: center; letter-spacing: 3px; margin-bottom: 4px; }
+  .login-logo span { color: var(--accent2); }
+  .login-sub { text-align: center; font-family: 'Share Tech Mono', monospace; font-size: .7rem; color: var(--dim); letter-spacing: 2px; margin-bottom: 22px; text-transform: uppercase; }
+  .login-error { color: var(--danger); font-family: 'Share Tech Mono', monospace; font-size: .72rem; margin-bottom: 12px; display: none; }
+  .login-note { margin-top: 16px; font-family: 'Share Tech Mono', monospace; font-size: .65rem; color: var(--dim); text-align: center; line-height: 1.6; }
+  .login-note b { color: var(--accent); }
+  .login-backend-field { margin-top: 18px; border-top: 1px solid var(--border); padding-top: 16px; }
+
+  @keyframes fadeDown { from { opacity:0; transform:translateY(-12px); } to { opacity:1; transform:translateY(0); } }
+  @keyframes fadeUp   { from { opacity:0; transform:translateY(14px);  } to { opacity:1; transform:translateY(0); } }
+  @keyframes fadeLeft { from { opacity:0; transform:translateX(-12px); } to { opacity:1; transform:translateX(0); } }
+  @keyframes blink    { 0%,100% { opacity:1; } 50% { opacity:.3; } }
+  ::-webkit-scrollbar { width: 4px; } ::-webkit-scrollbar-track { background: var(--panel); } ::-webkit-scrollbar-thumb { background: var(--border); }
+</style>
+</head>
+<body>
+
+<div class="toast" id="toast"></div>
+
+<!-- ══════════════ LOGIN OVERLAY ══════════════ -->
+<div class="login-overlay" id="loginOverlay">
+  <div class="login-box">
+    <div class="login-logo">IOT<span>-CIPHERWATCH</span></div>
+    <div class="login-sub">Secure Access Portal</div>
+    <div class="login-error" id="loginError">✕ INVALID CREDENTIALS</div>
+    <div class="form-row">
+      <label class="form-label">USERNAME</label>
+      <input class="form-input" id="loginUser" placeholder="admin" />
+    </div>
+    <div class="form-row">
+      <label class="form-label">PASSWORD</label>
+      <input class="form-input" id="loginPass" type="password" placeholder="••••••••" />
+    </div>
+    <button class="btn success" style="width:100%;padding:11px" onclick="attemptLogin()">▶ LOGIN</button>
+    <div class="login-note">Default login: <b>admin</b> / <b></b><br/></div>
+    <div class="login-backend-field">
+      <label class="form-label">BACKEND API ADDRESS</label>
+      <input class="form-input" id="loginApiHost" placeholder="http://localhost:4000" />
+      <div class="form-hint"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════ APP ROOT ══════════════ -->
+<div id="appRoot" style="display:none;">
+
+<!-- ADD DEVICE MODAL -->
+<div class="modal-overlay" id="addModal">
+  <div class="modal">
+    <button class="close-x" onclick="closeModal('addModal')">✕</button>
+    <div class="modal-title">// REGISTER NEW DEVICE</div>
+    <div class="modal-steps"><b>STEP 1/3 — REGISTER.</b> Name it, pick its type, and give its real IP on your network (check your router's connected-devices list, or the device's own network settings). This is written to the backend's encrypted store and probed for reachability immediately.</div>
+    <div class="form-row">
+      <label class="form-label">DEVICE NAME</label>
+      <input class="form-input" id="newDeviceName" placeholder="e.g. Living Room Smart Bulb" />
+    </div>
+    <div class="form-row">
+      <label class="form-label">DEVICE TYPE</label>
+      <select class="form-input" id="newDeviceType" onchange="onDeviceTypeChange()">
+        <optgroup label="Computers">
+          <option value="windows">Windows PC / Laptop</option>
+          <option value="mac">Mac (macOS)</option>
+          <option value="linux">Linux PC / Server</option>
+          <option value="chromebook">Chromebook</option>
+          <option value="rpi">Raspberry Pi / Microcontroller</option>
+        </optgroup>
+        <optgroup label="Mobile & Wearables">
+          <option value="android">Android Phone</option>
+          <option value="iphone">iPhone</option>
+          <option value="tablet">Tablet / iPad</option>
+          <option value="smartwatch">Smartwatch / Fitness Band</option>
+        </optgroup>
+        <optgroup label="Entertainment">
+          <option value="smarttv">Smart TV</option>
+          <option value="streamer">Streaming Stick / Box</option>
+          <option value="console">Game Console</option>
+          <option value="speaker">Smart Speaker</option>
+          <option value="display">Smart Display</option>
+        </optgroup>
+        <optgroup label="Smart Home">
+          <option value="bulb">Smart Bulb / Light Strip</option>
+          <option value="plug">Smart Plug / Outlet</option>
+          <option value="switch">Smart Wall Switch</option>
+          <option value="thermostat">Smart Thermostat</option>
+          <option value="lock">Smart Lock</option>
+          <option value="garage">Smart Garage Door Opener</option>
+          <option value="vacuum">Robot Vacuum</option>
+          <option value="fridge">Smart Refrigerator</option>
+          <option value="oven">Smart Oven / Microwave</option>
+          <option value="laundry">Smart Washer / Dryer</option>
+          <option value="irrigation">Smart Sprinkler Controller</option>
+        </optgroup>
+        <optgroup label="Security & Monitoring">
+          <option value="camera">IP / Security Camera</option>
+          <option value="doorbell">Video Doorbell</option>
+          <option value="babymonitor">Baby Monitor</option>
+          <option value="alarm">Alarm System Panel</option>
+          <option value="sensor">Motion / Door / Window Sensor</option>
+        </optgroup>
+        <optgroup label="Network Infrastructure">
+          <option value="router">Router / Gateway</option>
+          <option value="accesspoint">Wi-Fi Access Point / Mesh Node</option>
+          <option value="netswitch">Network Switch</option>
+          <option value="nas">NAS / Network Storage</option>
+          <option value="ups">Smart UPS / Power Backup</option>
+        </optgroup>
+        <optgroup label="Office & Peripherals">
+          <option value="printer">Printer / Scanner</option>
+          <option value="voip">VoIP / Desk Phone</option>
+        </optgroup>
+        <optgroup label="Other">
+          <option value="other">Other / Unlisted Device</option>
+        </optgroup>
+      </select>
+    </div>
+    <div class="form-row">
+      <label class="form-label">IP ADDRESS</label>
+      <input class="form-input" id="newDeviceIP" placeholder="192.168.x.x" />
+    </div>
+    <div class="form-row">
+      <label class="form-label">REACHABILITY CHECK PORT <span style="color:var(--dim); text-transform:none; letter-spacing:0">(optional — overrides the type default)</span></label>
+      <input class="form-input" id="newDevicePort" type="number" placeholder="e.g. 80, 443, 22 — leave blank to auto-detect" />
+    </div>
+    <div class="form-row">
+      <label class="form-label">MANAGEMENT PROTOCOL <span style="color:var(--dim); text-transform:none; letter-spacing:0">(only if this device supports real automated password rotation)</span></label>
+      <select class="form-input" id="newDeviceMgmt" onchange="onMgmtChange()">
+        <option value="">None — manual password application (most devices)</option>
+        <option value="ssh">SSH — Linux / Raspberry Pi / OpenWrt routers</option>
+      </select>
+    </div>
+    <div class="conditional-fields" id="sshFields">
+      <div class="form-row">
+        <label class="form-label">SSH USERNAME</label>
+        <input class="form-input" id="newDeviceSshUser" placeholder="e.g. root, pi" />
+      </div>
+      <div class="form-row">
+        <label class="form-label">SSH PORT</label>
+        <input class="form-input" id="newDeviceSshPort" type="number" value="22" />
+      </div>
+      <div class="form-hint">You'll be asked for this device's current password at the moment you rotate it — it's used once to authenticate the SSH session and is never stored.</div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn danger" onclick="closeModal('addModal')">CANCEL</button>
+      <button class="btn success" onclick="addDevice()">REGISTER DEVICE</button>
+    </div>
+  </div>
+</div>
+
+<!-- PASSWORD MODAL -->
+<div class="modal-overlay" id="pwModal">
+  <div class="modal">
+    <button class="close-x" onclick="closeModal('pwModal')">✕</button>
+    <div class="modal-title">// PASSWORD ROTATION</div>
+    <div class="modal-steps" id="pwStepsText">
+      <b>STEP 2/3 — GENERATE.</b> Pick the device, choose length/complexity, generate a key.<br/>
+      <b>STEP 3/3 — APPLY.</b> If this device has a management connector (currently: SSH), clicking Apply rotates it automatically over the network. Otherwise, copy it, paste it into the device's own app/admin page yourself, then click Apply to record it.
+    </div>
+    <div class="form-row">
+      <label class="form-label">TARGET DEVICE</label>
+      <select class="form-input" id="pwDevice" onchange="onPwDeviceChange()"></select>
+    </div>
+    <div class="form-row">
+      <label class="form-label">PASSWORD LENGTH</label>
+      <input class="form-input" id="pwLength" type="number" value="24" min="16" max="64" />
+    </div>
+    <div class="form-row">
+      <label class="form-label">COMPLEXITY</label>
+      <select class="form-input" id="pwComplexity">
+        <option value="max">MAXIMUM — All character sets + symbols</option>
+        <option value="high">HIGH — Alpha + Numeric + Special</option>
+        <option value="alpha">ALPHA-NUMERIC — Letters & Numbers only</option>
+      </select>
+    </div>
+    <div class="conditional-fields" id="pwSshAuthField">
+      <div class="form-row">
+        <label class="form-label">CURRENT SSH PASSWORD <span style="color:var(--dim); text-transform:none; letter-spacing:0">(used once to authenticate, not stored)</span></label>
+        <input class="form-input" id="pwSshCurrentPass" type="password" placeholder="Current password for this device" />
+      </div>
+    </div>
+    <button class="btn" style="width:100%;margin-top:4px" onclick="generatePassword()">⚡ GENERATE SECURE PASSWORD</button>
+    <div class="generated-pw" id="genPwDisplay" style="display:none">
+      <span id="genPwVal"></span>
+      <button class="copy-btn" onclick="copyPw()">[ COPY ]</button>
+    </div>
+    <div class="form-hint" id="pwApplyHint" style="display:none;">→ For devices with no connector: paste this into the device's own app/admin page now, then click Apply.</div>
+    <div class="apply-result" id="applyResult"></div>
+    <div class="modal-footer">
+      <button class="btn danger" onclick="closeModal('pwModal')">CLOSE</button>
+      <button class="btn success" id="applyPwBtn" style="display:none" onclick="applyPassword()">✓ APPLY</button>
+    </div>
+  </div>
+</div>
+
+<!-- HEADER -->
+<header>
+  <div class="logo">IOT<span>CIPHERWATCH</span></div>
+  <div class="header-status">
+    <div class="status-pill" id="backendPill"><div class="dot amber" id="backendDot"></div> <span id="backendPillText">CHECKING BACKEND...</span></div>
+    <div class="status-pill"><div class="dot green"></div> <span id="onlineCountPill">0</span> ONLINE</div>
+    <div class="status-pill"><div class="dot red"></div> <span id="offlineCountPill">0</span> OFFLINE</div>
+  </div>
+  <div class="header-right">
+    <div class="header-time" id="clock">--:--:--</div>
+    <button class="logout-btn" onclick="logout()">LOG OUT</button>
+  </div>
+</header>
+
+<div class="shell">
+  <nav>
+    <div class="nav-section">
+      <div class="nav-label">OVERVIEW</div>
+      <div class="nav-item active" onclick="showPage('dashboard',this)"><span class="ni">◈</span> Dashboard</div>
+      <div class="nav-item" onclick="showPage('devices',this)"><span class="ni">◧</span> Devices</div>
+    </div>
+    <div class="nav-section">
+      <div class="nav-label">SECURITY</div>
+      <div class="nav-item" onclick="showPage('passwords',this)"><span class="ni">⬡</span> Passwords</div>
+      <div class="nav-item" onclick="showPage('logs',this)"><span class="ni">≡</span> Audit Logs</div>
+    </div>
+    <div class="nav-section">
+      <div class="nav-label">SYSTEM</div>
+      <div class="nav-item" onclick="showPage('settings',this)"><span class="ni">◱</span> Settings</div>
+    </div>
+  </nav>
+
+  <main>
+    <!-- ── DASHBOARD ── -->
+    <div class="page active" id="page-dashboard">
+      <div class="page-title">// DASHBOARD</div>
+      <div class="page-sub">REAL-TIME IOT SECURITY OVERVIEW — <span id="dashDate"></span></div>
+      <div class="backend-banner" id="backendBanner"></div>
+
+      <div class="stats-row">
+        <div class="stat-card c1"><div class="stat-label">TOTAL DEVICES</div><div class="stat-val" id="totalDevices">0</div><div class="stat-sub">Registered in the encrypted store</div></div>
+        <div class="stat-card c2"><div class="stat-label">REACHABLE NOW</div><div class="stat-val" id="onlineDevices">0</div><div class="stat-sub">Confirmed by real ICMP/TCP probe</div></div>
+        <div class="stat-card c3"><div class="stat-label">PASSWORDS DUE</div><div class="stat-val" id="pwDueCount">0</div><div class="stat-sub">Age ≥ 80 days since applied</div></div>
+        <div class="stat-card c4"><div class="stat-label">AUTO-ROTATABLE</div><div class="stat-val" id="autoCount">0</div><div class="stat-sub">Have a real management connector</div></div>
+      </div>
+
+      <div class="grid3">
+        <div class="pnl">
+          <div class="pnl-title">DEVICE STATUS <span class="pnl-title-right" id="lastScan">LAST PROBE: --:--</span></div>
+          <div class="device-list" id="dashDeviceList"></div>
+        </div>
+        <div class="pnl">
+          <div class="pnl-title">FLEET HEALTH</div>
+          <div class="score-circle">
+            <svg viewBox="0 0 110 110">
+              <circle cx="55" cy="55" r="48" fill="none" stroke="#0d2136" stroke-width="8"/>
+              <circle id="scoreRing" cx="55" cy="55" r="48" fill="none" stroke="#00ff9d" stroke-width="8" stroke-dasharray="301.6" stroke-dashoffset="60" stroke-linecap="round"/>
+            </svg>
+            <div class="score-val" id="scoreVal">--</div>
+          </div>
+          <div class="score-label" id="scoreLabel">/ 100</div>
+          <div style="margin-top:18px">
+            <div class="progress-wrap"><div class="progress-label"><span>Reachability</span><span id="reachPct">0%</span></div><div class="progress-bar"><div class="progress-fill green" id="reachBar" style="width:0%"></div></div></div>
+            <div class="progress-wrap" style="margin-top:12px"><div class="progress-label"><span>Password Freshness</span><span id="freshPct">0%</span></div><div class="progress-bar"><div class="progress-fill amber" id="freshBar" style="width:0%"></div></div></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="grid2">
+        <div class="pnl"><div class="pnl-title">LIVE ACTIVITY LOG</div><div class="log-feed" id="dashLog"></div></div>
+        <div class="pnl">
+          <div class="pnl-title">QUICK ACTIONS</div>
+          <div style="display:flex;flex-direction:column;gap:10px;margin-top:4px">
+            <button class="btn success" style="width:100%;padding:12px" onclick="pollBackend(true)">⚡ FORCE RE-PROBE ALL DEVICES</button>
+            <button class="btn" style="width:100%;padding:12px" onclick="openModal('pwModal')">⬡ GENERATE / ROTATE PASSWORD</button>
+            <button class="btn" style="width:100%;padding:12px" onclick="openModal('addModal')">◧ REGISTER NEW DEVICE</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── DEVICES ── -->
+    <div class="page" id="page-devices">
+      <div class="page-title">// REGISTERED DEVICES</div>
+      <div class="page-sub">MANAGE YOUR HOME / OFFICE DEVICE FLEET</div>
+      <div class="guide-banner" id="deviceGuide">
+        <div>
+          <b>// HOW THIS WORKS</b>
+          <ol>
+            <li><b>Register a device</b> below — its real IP is probed with actual ICMP ping / TCP connect on a background timer, not simulated.</li>
+            <li>Go to <b>Passwords</b> and generate one for that device.</li>
+            <li>If it has a management connector (e.g. SSH), clicking Apply rotates it automatically over the network. Otherwise, paste it into the device's own app/admin page, then click Apply to record it.</li>
+            <li>Remove a device permanently with the ✕ on its card — it's deleted from the backend's encrypted store, not just hidden.</li>
+          </ol>
+        </div>
+        <button class="guide-close" onclick="document.getElementById('deviceGuide').style.display='none'">✕</button>
+      </div>
+      <div style="display:flex;justify-content:flex-end;margin-bottom:14px">
+        <button class="btn success" onclick="openModal('addModal')">+ ADD DEVICE</button>
+      </div>
+      <div class="device-list" id="fullDeviceList"></div>
+    </div>
+
+    <!-- ── PASSWORDS ── -->
+    <div class="page" id="page-passwords">
+      <div class="page-title">// PASSWORD VAULT</div>
+      <div class="page-sub">CREDENTIALS ENCRYPTED AT REST (AES-256-GCM) ON THE BACKEND</div>
+      <div style="display:flex;justify-content:flex-end;margin-bottom:14px">
+        <button class="btn" onclick="openModal('pwModal')">⬡ GENERATE / ROTATE PASSWORD</button>
+      </div>
+      <div class="pnl"><div class="pnl-title">DEVICE CREDENTIALS</div><div class="pw-list" id="pwList"></div></div>
+      <div class="pnl" style="margin-top:18px">
+        <div class="pnl-title">PASSWORD POLICY</div>
+        <table>
+          <tr><th>RULE</th><th>REQUIREMENT</th><th>STATUS</th></tr>
+          <tr><td>Minimum Length</td><td>16 characters</td><td><span class="badge online">ENFORCED (form min)</span></td></tr>
+          <tr><td>Rotation Period</td><td>Every 90 days</td><td><span class="badge warning">TRACKED FROM REAL APPLY TIME</span></td></tr>
+          <tr><td>Encrypted at Rest</td><td>AES-256-GCM</td><td><span class="badge online">ENFORCED (backend)</span></td></tr>
+        </table>
+      </div>
+    </div>
+
+    <!-- ── LOGS ── -->
+    <div class="page" id="page-logs">
+      <div class="page-title">// AUDIT LOGS</div>
+      <div class="page-sub">SESSION EVENT HISTORY (CLIENT-SIDE VIEW)</div>
+      <div class="pnl">
+        <div class="pnl-title">EVENT LOG <span class="pnl-title-right"><button class="btn" style="padding:3px 10px;font-size:.65rem" onclick="clearLogs()">CLEAR</button></span></div>
+        <div class="log-feed" style="max-height:500px" id="fullLog"></div>
+      </div>
+    </div>
+
+    <!-- ── SETTINGS ── -->
+    <div class="page" id="page-settings">
+      <div class="page-title">// SETTINGS</div>
+      <div class="page-sub">BACKEND, NOTIFICATIONS &amp; LOGIN CONFIGURATION</div>
+      <div class="grid2">
+        <div class="pnl">
+          <div class="pnl-title">BACKEND CONNECTION</div>
+          <div class="form-row"><label class="form-label">API ADDRESS</label><input class="form-input" id="settingsApiHost" /></div>
+          <div class="form-hint">This must point at a running BREACH-DETECTOR backend (see the backend's README.md) for real device probing, encrypted storage, and password rotation to function.</div>
+          <button class="btn success" style="width:100%;margin-top:10px" onclick="saveApiHost()">SAVE &amp; RECONNECT</button>
+        </div>
+        <div class="pnl">
+          <div class="pnl-title">NOTIFICATION SETTINGS</div>
+          <div style="display:flex;flex-direction:column;gap:14px">
+            <div style="display:flex;justify-content:space-between;align-items:center">
+              <div>
+                <div style="font-size:.82rem">Phone / Browser Push Alerts</div>
+                <div style="font-size:.68rem;color:var(--dim);margin-top:2px;font-family:'Share Tech Mono',monospace">Fires when a device's real password age passes 80 days</div>
+              </div>
+              <label class="toggle"><input type="checkbox" id="notifToggle" onchange="toggleNotifications()"><span class="slider"></span></label>
+            </div>
+            <button class="btn" style="width:100%;" onclick="sendTestNotification()">SEND TEST NOTIFICATION</button>
+            <div class="form-hint" id="notifStatus">Notifications are off.</div>
+          </div>
+        </div>
+      </div>
+      <div class="pnl">
+        <div class="pnl-title">CHANGE LOGIN CREDENTIALS <span class="pnl-title-right">(UI gate only — does not authenticate to the backend)</span></div>
+        <div class="grid2" style="margin-bottom:0;">
+          <div>
+            <div class="form-row"><label class="form-label">CURRENT PASSWORD</label><input class="form-input" type="password" id="curPass" /></div>
+            <div class="form-row"><label class="form-label">NEW USERNAME</label><input class="form-input" id="newUser" placeholder="leave blank to keep current" /></div>
+          </div>
+          <div>
+            <div class="form-row"><label class="form-label">NEW PASSWORD</label><input class="form-input" type="password" id="newPass" placeholder="leave blank to keep current" /></div>
+            <div class="form-row"><label class="form-label">CONFIRM NEW PASSWORD</label><input class="form-input" type="password" id="confirmPass" /></div>
+          </div>
+        </div>
+        <button class="btn success" style="width:100%;margin-top:8px" onclick="changeCredentials()">UPDATE LOGIN CREDENTIALS</button>
+      </div>
+    </div>
+  </main>
+</div>
+</div><!-- /appRoot -->
+
+<script>
+/* ══════════════════════════════════════════════════════════════
+   BREACH-DETECTOR frontend.
+   This UI is a thin client: real reachability, real device
+   persistence (encrypted), and real password rotation all happen
+   on the backend (see /breach-detector-backend). This file polls
+   that backend and never fabricates device status locally.
+   ══════════════════════════════════════════════════════════════ */
+const LS_APIHOST = "breachdetector_apihost_v1";
+const LS_AUTH    = "breachdetector_auth_v1";
+const LS_NOTIF   = "breachdetector_notif_v1";
+const POLL_MS = 5000;
+
+let apiHost = localStorage.getItem(LS_APIHOST) || "http://localhost:4000";
+let devices = [];
+let logs = [];
+let currentPw = "";
+let currentPwDeviceId = null;
+let backendUp = false;
+let pollTimer = null;
+
+const icons = {
+  windows:"🖥", mac:"🖥", linux:"🖥", chromebook:"💻", rpi:"🔧",
+  android:"📱", iphone:"📱", tablet:"📱", smartwatch:"⌚",
+  smarttv:"📺", streamer:"📺", console:"🎮", speaker:"🔊", display:"🖼",
+  bulb:"💡", plug:"🔌", switch:"🔌", thermostat:"🌡", lock:"🔒",
+  garage:"🚪", vacuum:"🤖", fridge:"🧊", oven:"🍳", laundry:"🧺", irrigation:"🌱",
+  camera:"📷", doorbell:"🔔", babymonitor:"👶", alarm:"🚨", sensor:"📟",
+  router:"📡", accesspoint:"📡", netswitch:"🔀", nas:"🗄", ups:"🔋",
+  printer:"🖨", voip:"☎", other:"❓"
+};
+function deviceIcon(type){ return icons[type] || "❓"; }
+function deviceTypeLabel(type){
+  const el = document.querySelector(`#newDeviceType option[value="${type}"]`);
+  return el ? el.textContent : type;
+}
+
+/* ── AUTH (UI gate only) ── */
+function getAuth(){
+  const raw = localStorage.getItem(LS_AUTH);
+  if (raw) return JSON.parse(raw);
+  const def = { user: "admin", pass: "shieldnet123" };
+  localStorage.setItem(LS_AUTH, JSON.stringify(def));
+  return def;
+}
+function attemptLogin(){
+  const u = document.getElementById("loginUser").value.trim();
+  const p = document.getElementById("loginPass").value;
+  const hostField = document.getElementById("loginApiHost").value.trim();
+  const auth = getAuth();
+  const errEl = document.getElementById("loginError");
+  if (u === auth.user && p === auth.pass){
+    if (hostField) { apiHost = hostField.replace(/\/$/, ""); localStorage.setItem(LS_APIHOST, apiHost); }
+    sessionStorage.setItem("breachdetector_logged_in", "1");
+    errEl.style.display = "none";
+    document.getElementById("loginOverlay").style.display = "none";
+    document.getElementById("appRoot").style.display = "block";
+    bootApp();
+  } else {
+    errEl.style.display = "block";
+  }
+}
+function logout(){
+  sessionStorage.removeItem("breachdetector_logged_in");
+  clearInterval(pollTimer);
+  document.getElementById("appRoot").style.display = "none";
+  document.getElementById("loginOverlay").style.display = "flex";
+  document.getElementById("loginPass").value = "";
+}
+function changeCredentials(){
+  const auth = getAuth();
+  const cur = document.getElementById("curPass").value;
+  if (cur !== auth.pass){ showToast("✕ Current password is incorrect", true); return; }
+  const newUser = document.getElementById("newUser").value.trim();
+  const newPass = document.getElementById("newPass").value;
+  const confirmPass = document.getElementById("confirmPass").value;
+  if (newPass && newPass !== confirmPass){ showToast("✕ New passwords do not match", true); return; }
+  const updated = { user: newUser || auth.user, pass: newPass || auth.pass };
+  localStorage.setItem(LS_AUTH, JSON.stringify(updated));
+  ["curPass","newUser","newPass","confirmPass"].forEach(id => document.getElementById(id).value = "");
+  addLog("Login credentials changed via Settings", "ok");
+  showToast("✓ Login credentials updated");
+}
+function saveApiHost(){
+  const v = document.getElementById("settingsApiHost").value.trim();
+  if (!v) { showToast("Enter a backend address first", true); return; }
+  apiHost = v.replace(/\/$/, "");
+  localStorage.setItem(LS_APIHOST, apiHost);
+  addLog(`Backend API address set to ${apiHost}`, "info");
+  showToast("✓ Reconnecting to backend...");
+  pollBackend(true);
+}
+
+/* ── CLOCK ── */
+function updateClock() {
+  document.getElementById("clock").textContent = new Date().toLocaleTimeString();
+  const dd = document.getElementById("dashDate");
+  if (dd) dd.textContent = new Date().toLocaleDateString("en-GB", { weekday:'long', year:'numeric', month:'long', day:'numeric' });
+}
+
+/* ── NAVIGATION ── */
+function showPage(id, el) {
+  document.querySelectorAll(".page").forEach(p => p.classList.remove("active"));
+  document.querySelectorAll(".nav-item").forEach(n => n.classList.remove("active"));
+  document.getElementById("page-" + id).classList.add("active");
+  if (el) el.classList.add("active");
+  renderAll();
+}
+
+/* ── BACKEND POLLING (the real reachability source) ── */
+async function pollBackend(manual){
+  try {
+    const res = await fetch(`${apiHost}/api/devices`, { cache: "no-store" });
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    const data = await res.json();
+    devices = data;
+    setBackendStatus(true);
+    if (manual) { addLog("Manual re-probe requested — backend re-checked all devices", "info"); showToast("✓ Backend synced"); }
+  } catch (err) {
+    setBackendStatus(false);
+    if (manual) showToast("✕ Could not reach backend at " + apiHost, true);
+  }
+  renderAll();
+}
+function setBackendStatus(up){
+  const wasUp = backendUp;
+  backendUp = up;
+  const dot = document.getElementById("backendDot");
+  const text = document.getElementById("backendPillText");
+  const banner = document.getElementById("backendBanner");
+  if (up) {
+    dot.className = "dot green";
+    text.textContent = "BACKEND CONNECTED";
+    banner.className = "backend-banner ok";
+    banner.innerHTML = `<span><b>✓ LIVE</b> — connected to <code>${apiHost}</code>. Device status below is real ICMP/TCP probe data, refreshed every ${POLL_MS/1000}s.</span>`;
+    if (!wasUp) addLog("Connected to backend at " + apiHost, "ok");
+  } else {
+    dot.className = "dot red";
+    text.textContent = "BACKEND UNREACHABLE";
+    banner.className = "backend-banner down";
+    banner.innerHTML = `<span><b>✕ OFFLINE</b> — cannot reach <code>${apiHost}</code>. Start the backend (<code>npm start</code> in breach-detector-backend/) — device status shown here may be stale, and adding/removing devices or rotating passwords will not work until it's back.</span>`;
+    if (wasUp) addLog("Lost connection to backend at " + apiHost, "err");
+  }
+}
+
+/* ── STATUS DERIVATION (from real backend fields only) ── */
+function statusFor(d){
+  if (!backendUp) return "offline";
+  return d.reachable ? "online" : "offline";
+}
+function pwDue(d){ return d.pwAge !== null && d.pwAge !== undefined && d.pwAge >= 80; }
+
+/* ── RENDER DEVICES ── */
+function timeAgo(iso){
+  if (!iso) return "never";
+  const s = Math.floor((Date.now() - new Date(iso).getTime())/1000);
+  if (s < 60) return s + "s ago";
+  if (s < 3600) return Math.floor(s/60) + "m ago";
+  if (s < 86400) return Math.floor(s/3600) + "h ago";
+  return Math.floor(s/86400) + "d ago";
+}
+function renderDeviceCard(d, mini) {
+  const st = statusFor(d);
+  const statusLabel = st === "online" ? "ONLINE (" + (d.probeMethod||"?") + ")" : "OFFLINE";
+  const pwBadge = d.hasPassword ? (pwDue(d) ? `<span class="badge warning">PW ${d.pwAge}d — DUE</span>` : `<span class="badge online">PW ${d.pwAge}d</span>`) : `<span class="badge offline">NO PASSWORD SET</span>`;
+  const autoBadge = d.managementProtocol ? `<span class="badge auto">AUTO: ${d.managementProtocol.toUpperCase()}</span>` : "";
+  return `
+    <div class="device-card ${st}">
+      <div class="device-icon">${deviceIcon(d.type)}</div>
+      <div>
+        <div class="device-name">${d.name}</div>
+        <div class="device-meta">${deviceTypeLabel(d.type)} &nbsp;|&nbsp; ${d.ip}${d.port ? ':'+d.port : ''} &nbsp;|&nbsp; Last seen: ${timeAgo(d.lastSeen)}</div>
+        ${!mini ? `<div class="device-meta" style="margin-top:4px">${pwBadge} ${autoBadge}</div>` : ""}
+      </div>
+      <div class="device-status">
+        <span class="badge ${st}">${statusLabel}</span>
+        <div class="device-actions">
+          ${!mini ? `<button class="btn" style="padding:4px 10px;font-size:.65rem" onclick="openPwForDevice('${d.id}')">ROTATE PW</button>` : ""}
+          ${!mini ? `<button class="icon-btn" title="Remove device" onclick="removeDevice('${d.id}')">✕</button>` : ""}
+        </div>
+      </div>
+    </div>`;
+}
+
+/* ── RENDER PASSWORD LIST ── */
+function pwStrengthLevel(d){
+  if (!d.hasPassword) return "low";
+  if (d.pwComplexity === "max") return "high";
+  if (d.pwComplexity === "alpha") return "low";
+  return "med";
+}
+function renderPwList() {
+  const el = document.getElementById("pwList");
+  if (!el) return;
+  const withPw = devices.filter(d => d.hasPassword);
+  el.innerHTML = withPw.map(d => {
+    const lvl = pwStrengthLevel(d);
+    const filledCount = lvl === "high" ? 5 : lvl === "med" ? 3 : 1;
+    const bars = [0,1,2,3,4].map(i => `<div class="pw-bar ${i < filledCount ? "filled "+lvl : ""}"></div>`).join("");
+    return `
+      <div class="pw-item">
+        <div>
+          <div class="pw-device">${deviceIcon(d.type)} ${d.name}</div>
+          <div class="pw-hash">Age: ${d.pwAge}d &nbsp;|&nbsp; Applied via: ${d.appliedVia || "—"} &nbsp;|&nbsp; Encrypted at rest</div>
+        </div>
+        <div class="pw-strength">${bars}</div>
+        <button class="btn" style="padding:5px 10px;font-size:.65rem" onclick="openPwForDevice('${d.id}')">REGENERATE</button>
+      </div>`;
+  }).join("") || `<div class="device-meta">No passwords applied yet. Use "Generate / Rotate Password" above.</div>`;
+}
+
+/* ── RENDER ALL ── */
+function renderAll() {
+  const dl = document.getElementById("dashDeviceList");
+  if (dl) dl.innerHTML = devices.map(d => renderDeviceCard(d, true)).join("") || `<div class="device-meta">No devices registered yet.</div>`;
+  const fl = document.getElementById("fullDeviceList");
+  if (fl) fl.innerHTML = devices.map(d => renderDeviceCard(d, false)).join("") || `<div class="device-meta">No devices registered yet. Click "Add Device" above.</div>`;
+  renderPwList();
+  renderLogs();
+
+  const sel = document.getElementById("pwDevice");
+  if (sel) {
+    const prev = sel.value;
+    sel.innerHTML = devices.map(d => `<option value="${d.id}">${deviceIcon(d.type)} ${d.name} (${d.ip})</option>`).join("") || `<option value="">No devices registered</option>`;
+    if (prev) sel.value = prev;
+    onPwDeviceChange();
+  }
+
+  const total = devices.length;
+  const online = devices.filter(d => statusFor(d) === "online").length;
+  const offline = total - online;
+  const pwDueN = devices.filter(pwDue).length;
+  const autoN = devices.filter(d => d.managementProtocol).length;
+
+  document.getElementById("totalDevices").textContent = total;
+  document.getElementById("onlineDevices").textContent = online;
+  document.getElementById("pwDueCount").textContent = pwDueN;
+  document.getElementById("autoCount").textContent = autoN;
+  document.getElementById("onlineCountPill").textContent = online;
+  document.getElementById("offlineCountPill").textContent = offline;
+
+  const reachPct = total ? Math.round((online/total)*100) : 0;
+  const withPw = devices.filter(d => d.hasPassword).length;
+  const freshPw = devices.filter(d => d.hasPassword && !pwDue(d)).length;
+  const freshPct = withPw ? Math.round((freshPw/withPw)*100) : 0;
+  document.getElementById("reachPct").textContent = reachPct + "%";
+  document.getElementById("reachBar").style.width = reachPct + "%";
+  document.getElementById("freshPct").textContent = freshPct + "%";
+  document.getElementById("freshBar").style.width = freshPct + "%";
+  const score = total ? Math.round((reachPct + freshPct) / 2) : null;
+  document.getElementById("scoreVal").textContent = score === null ? "--" : score;
+  document.getElementById("scoreLabel").textContent = score === null ? "No devices yet" : "/ 100";
+  if (score !== null) {
+    const offset = 301.6 - (301.6 * score / 100);
+    document.getElementById("scoreRing").style.strokeDashoffset = offset;
+  }
+  const ls = document.getElementById("lastScan");
+  if (ls) ls.textContent = "LAST PROBE: " + new Date().toLocaleTimeString();
+
+  checkPasswordExpiryNotifications();
+}
+
+/* ── LOGS (client-side session view) ── */
+function addLog(msg, type) {
+  type = type || "info";
+  const t = new Date().toLocaleTimeString();
+  logs.unshift({ t, msg, type });
+  if (logs.length > 100) logs.pop();
+  renderLogs();
+}
+function renderLogs() {
+  ["dashLog","fullLog"].forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    const limit = id === "dashLog" ? 10 : 60;
+    el.innerHTML = logs.slice(0, limit).map(l =>
+      `<div class="log-item"><span class="log-time">${l.t}</span><span class="log-msg ${l.type}">${l.msg}</span></div>`
+    ).join("") || `<div class="log-item"><span class="log-time">--:--</span><span class="log-msg info">No events yet.</span></div>`;
+  });
+}
+function clearLogs() { logs = []; renderLogs(); showToast("Session log cleared"); }
+
+/* ── ADD / REMOVE DEVICE (real backend calls) ── */
+function onDeviceTypeChange(){ /* reserved for future type-specific fields */ }
+function onMgmtChange(){
+  const v = document.getElementById("newDeviceMgmt").value;
+  document.getElementById("sshFields").classList.toggle("show", v === "ssh");
+}
+async function addDevice() {
+  const name = document.getElementById("newDeviceName").value.trim();
+  const type = document.getElementById("newDeviceType").value;
+  const ip   = document.getElementById("newDeviceIP").value.trim();
+  const port = document.getElementById("newDevicePort").value.trim();
+  const mgmt = document.getElementById("newDeviceMgmt").value;
+  const sshUser = document.getElementById("newDeviceSshUser").value.trim();
+  const sshPort = document.getElementById("newDeviceSshPort").value.trim();
+
+  if (!name || !ip) { showToast("⚠ Name and IP are required", true); return; }
+  if (!backendUp) { showToast("✕ Backend is unreachable — cannot register a device without it", true); return; }
+  if (mgmt === "ssh" && !sshUser) { showToast("⚠ SSH username is required for SSH-managed devices", true); return; }
+
+  const payload = { name, type, ip };
+  if (port) payload.port = parseInt(port, 10);
+  if (mgmt) payload.managementProtocol = mgmt;
+  if (mgmt === "ssh") { payload.sshUser = sshUser; payload.sshPort = sshPort ? parseInt(sshPort,10) : 22; }
+
+  try {
+    const res = await fetch(`${apiHost}/api/devices`, {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload)
+    });
+    if (!res.ok) throw new Error((await res.json()).error || ("HTTP " + res.status));
+    const created = await res.json();
+    addLog(`Device registered permanently: ${created.name} (${created.ip}) — backend probing now`, "ok");
+    closeModal("addModal");
+    ["newDeviceName","newDeviceIP","newDevicePort","newDeviceSshUser"].forEach(id => document.getElementById(id).value = "");
+    document.getElementById("newDeviceMgmt").value = "";
+    document.getElementById("sshFields").classList.remove("show");
+    showToast(`✓ "${created.name}" registered — now generate it a password`);
+    await pollBackend();
+  } catch (err) {
+    showToast("✕ Failed to register device: " + err.message, true);
+  }
+}
+async function removeDevice(id) {
+  const d = devices.find(x => x.id === id);
+  if (!d) return;
+  if (!confirm(`Permanently remove "${d.name}" from BREACH-DETECTOR? This deletes it from the backend's store.`)) return;
+  if (!backendUp) { showToast("✕ Backend is unreachable — cannot remove a device without it", true); return; }
+  try {
+    const res = await fetch(`${apiHost}/api/devices/${id}`, { method: "DELETE" });
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    addLog(`Device removed: ${d.name}`, "warn");
+    showToast(`✓ "${d.name}" removed`);
+    await pollBackend();
+  } catch (err) {
+    showToast("✕ Failed to remove device: " + err.message, true);
+  }
+}
+
+/* ── PASSWORD GENERATOR (real crypto RNG, client-side) ── */
+const charSets = {
+  max:   "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*()-_=+[]{}|;:,.<>?",
+  high:  "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*",
+  alpha: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+};
+function onPwDeviceChange(){
+  const id = document.getElementById("pwDevice").value;
+  const d = devices.find(x => x.id === id);
+  const sshField = document.getElementById("pwSshAuthField");
+  if (sshField) sshField.classList.toggle("show", !!(d && d.managementProtocol === "ssh"));
+  document.getElementById("genPwDisplay").style.display = "none";
+  document.getElementById("applyPwBtn").style.display = "none";
+  document.getElementById("pwApplyHint").style.display = "none";
+  document.getElementById("applyResult").className = "apply-result";
+  currentPw = ""; currentPwDeviceId = null;
+}
+function generatePassword() {
+  if (devices.length === 0) { showToast("Register a device first", true); return; }
+  const devId = document.getElementById("pwDevice").value;
+  const len  = Math.min(64, Math.max(16, parseInt(document.getElementById("pwLength").value) || 24));
+  const comp = document.getElementById("pwComplexity").value;
+  const chars = charSets[comp];
+  let pw = "";
+  const arr = new Uint32Array(len);
+  crypto.getRandomValues(arr);
+  for (let i = 0; i < len; i++) pw += chars[arr[i] % chars.length];
+  currentPw = pw;
+  currentPwDeviceId = devId;
+  document.getElementById("genPwVal").textContent = pw;
+  document.getElementById("genPwDisplay").style.display = "flex";
+  const d = devices.find(x => x.id === devId);
+  document.getElementById("pwApplyHint").style.display = (d && d.managementProtocol) ? "none" : "block";
+  document.getElementById("applyPwBtn").style.display = "inline-block";
+  document.getElementById("applyResult").className = "apply-result";
+}
+async function applyPassword() {
+  if (!currentPw || !currentPwDeviceId) { showToast("Generate a password first", true); return; }
+  if (!backendUp) { showToast("✕ Backend is unreachable — cannot apply a password without it", true); return; }
+  const d = devices.find(x => x.id === currentPwDeviceId);
+  const complexity = document.getElementById("pwComplexity").value;
+  const body = { password: currentPw, complexity };
+  if (d && d.managementProtocol === "ssh") {
+    const cur = document.getElementById("pwSshCurrentPass").value;
+    if (!cur) { showToast("⚠ Enter the device's current SSH password to authenticate", true); return; }
+    body.sshPassword = cur;
+  }
+  const resultEl = document.getElementById("applyResult");
+  resultEl.className = "apply-result";
+  resultEl.textContent = "Applying...";
+  resultEl.style.display = "block";
+  try {
+    const res = await fetch(`${apiHost}/api/devices/${currentPwDeviceId}/password`, {
+      method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body)
+    });
+    const data = await res.json();
+    if (res.ok && data.status === "applied_automatically") {
+      resultEl.className = "apply-result auto";
+      resultEl.textContent = `✓ Rotated automatically via ${data.via.toUpperCase()} — confirmed on the device itself, not just recorded here.`;
+      addLog(`Password auto-rotated for ${d.name} via ${data.via}`, "ok");
+      showToast(`✓ Auto-rotated on ${d.name}`);
+    } else if (res.ok && data.status === "manual_required") {
+      resultEl.className = "apply-result manual";
+      resultEl.textContent = "✓ Recorded. " + data.message;
+      addLog(`Password recorded for ${d.name} — manual application required (no connector for this device type)`, "warn");
+      showToast(`✓ Recorded for ${d.name} — remember to paste it into the device's app`);
+    } else if (data.status === "automation_failed") {
+      resultEl.className = "apply-result fail";
+      resultEl.textContent = "✕ Automatic rotation failed: " + data.error + " — nothing was changed on the device or recorded.";
+      addLog(`Automatic password rotation FAILED for ${d.name}: ${data.error}`, "err");
+      showToast("✕ Rotation failed — see Passwords panel", true);
+      return; // don't close the modal — let them see the real error and retry
+    } else {
+      throw new Error(data.error || "Unknown error");
+    }
+    document.getElementById("pwSshCurrentPass").value = "";
+    await pollBackend();
+    setTimeout(() => closeModal("pwModal"), 1400);
+  } catch (err) {
+    resultEl.className = "apply-result fail";
+    resultEl.textContent = "✕ Request failed: " + err.message;
+    showToast("✕ Failed to apply password", true);
+  }
+}
+function copyPw() {
+  navigator.clipboard?.writeText(currentPw)
+    .then(() => showToast("✓ Copied"))
+    .catch(() => showToast("Copy failed — select and copy manually", true));
+}
+function openPwForDevice(id) {
+  openModal("pwModal");
+  setTimeout(() => {
+    const sel = document.getElementById("pwDevice");
+    if (sel) { sel.value = id; onPwDeviceChange(); }
+  }, 50);
+}
+
+/* ── NOTIFICATIONS (browser/phone push — real elapsed-time trigger) ── */
+function notifEnabled(){ return localStorage.getItem(LS_NOTIF) === "1"; }
+function toggleNotifications(){
+  const wantOn = document.getElementById("notifToggle").checked;
+  if (!wantOn){ localStorage.setItem(LS_NOTIF, "0"); document.getElementById("notifStatus").textContent = "Notifications are off."; return; }
+  if (!("Notification" in window)){ showToast("This browser doesn't support notifications", true); document.getElementById("notifToggle").checked = false; return; }
+  Notification.requestPermission().then(perm => {
+    if (perm === "granted"){
+      localStorage.setItem(LS_NOTIF, "1");
+      document.getElementById("notifStatus").textContent = "Notifications are on — alerts fire when a device's real password age (tracked server-side) passes 80 days.";
+      new Notification("BREACH-DETECTOR notifications enabled", { body: "You'll be alerted when a device password is due for rotation." });
+      addLog("Phone/browser push notifications enabled", "ok");
+    } else {
+      document.getElementById("notifToggle").checked = false;
+      showToast("Notification permission was not granted", true);
+    }
+  });
+}
+function sendTestNotification(){
+  if (!notifEnabled() || Notification.permission !== "granted"){ showToast("Turn on Phone/Browser Push Alerts first", true); return; }
+  new Notification("BREACH-DETECTOR test alert", { body: "This is what a password-rotation alert will look like." });
+}
+let notifiedIds = new Set();
+function checkPasswordExpiryNotifications(){
+  if (!notifEnabled() || !("Notification" in window) || Notification.permission !== "granted") return;
+  devices.filter(pwDue).forEach(d => {
+    if (notifiedIds.has(d.id)) return;
+    notifiedIds.add(d.id);
+    new Notification("BREACH-DETECTOR: password due for rotation", { body: `"${d.name}" password is ${d.pwAge} days old — rotate it soon.` });
+  });
+}
+
+/* ── MODAL ── */
+function openModal(id) { document.getElementById(id).classList.add("open"); }
+function closeModal(id) {
+  document.getElementById(id).classList.remove("open");
+  if (id === "pwModal"){
+    document.getElementById("genPwDisplay").style.display = "none";
+    document.getElementById("applyPwBtn").style.display = "none";
+    document.getElementById("pwApplyHint").style.display = "none";
+    document.getElementById("applyResult").className = "apply-result";
+    document.getElementById("pwSshCurrentPass").value = "";
+    currentPw = ""; currentPwDeviceId = null;
+  }
+}
+document.querySelectorAll(".modal-overlay").forEach(m => m.addEventListener("click", e => { if (e.target === m) m.classList.remove("open"); }));
+
+/* ── TOAST ── */
+let toastTimer;
+function showToast(msg, isError) {
+  const t = document.getElementById("toast");
+  t.textContent = msg;
+  t.className = "toast show" + (isError ? " err" : "");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove("show"), 3400);
+}
+
+/* ── BOOT ── */
+function bootApp(){
+  document.getElementById("settingsApiHost").value = apiHost;
+  document.getElementById("notifToggle").checked = notifEnabled() && ("Notification" in window) && Notification.permission === "granted";
+  document.getElementById("notifStatus").textContent = notifEnabled() ? "Notifications are on." : "Notifications are off.";
+  logs = [];
+  addLog("BREACH-DETECTOR session started", "info");
+  updateClock();
+  setInterval(updateClock, 1000);
+  pollBackend();
+  clearInterval(pollTimer);
+  pollTimer = setInterval(() => pollBackend(false), POLL_MS);
+}
+
+window.onload = () => {
+  document.getElementById("loginApiHost").value = apiHost;
+  if (sessionStorage.getItem("breachdetector_logged_in") === "1"){
+    document.getElementById("loginOverlay").style.display = "none";
+    document.getElementById("appRoot").style.display = "block";
+    bootApp();
+  }
+  document.getElementById("loginPass").addEventListener("keydown", e => { if (e.key === "Enter") attemptLogin(); });
+  document.getElementById("loginUser").addEventListener("keydown", e => { if (e.key === "Enter") attemptLogin(); });
+};
+</script>
+</body>
+</html>
